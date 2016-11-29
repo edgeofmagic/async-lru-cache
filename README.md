@@ -147,7 +147,7 @@ public:
 	...
 ```
 
-###Iterator
+####Iterator
 
 The template defines a const_iterator type consistent with standard library const forward iterators. It has two purposes:
 
@@ -207,7 +207,7 @@ A cache cannot be re-sized after construction.
 The cache implementation constructs the underlying unordered map with a bucket count set to the specified cache capacity 
 divided by the load factor. The load factor parameter has a default value of 0.75, and the value is forced into the range (0.5, 0.95).
 
-####Constructor
+####Example
 
 A small (and rather silly) but complete example is provided in the examples subdirectory.
 
