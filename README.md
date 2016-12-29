@@ -7,7 +7,7 @@
 I needed a simple cache for another project. There are many available C++ implementations of a simple LRU cache,
 but I had specific requirements and preferences that weren't addressed by any of the existing implementations I could find.
 
-## My Requirements
+### My Requirements
 
 #### Compatible with an asynchronous event loop environment
 
@@ -26,6 +26,7 @@ where the get() method can't return a value until the code that handles the cach
 block.
 
 Alternatively, a non-blocking cache interface might look something like this:
+
 ```` cpp
 cache.get(key, [] (const V& value) { /* use value ... */ });
 ````
