@@ -1,13 +1,15 @@
 # async-lru-cache
-A fast, robust C++ implementation of an LRU cache suitable for use with asynchronous event-loop environments
-## Why?
+
+## A fast, robust C++ implementation of an LRU cache suitable for use with asynchronous event-loop environments
+
+### Why?
 
 I needed a simple cache for another project. There are many available C++ implementations of a simple LRU cache,
 but I had specific requirements and preferences that weren't addressed by any of the existing implementations I could find.
 
-##My Requirements
+## My Requirements
 
-####Compatible with an asynchronous event loop environment
+#### Compatible with an asynchronous event loop environment
 
 The project in question employs an asynchronous event processing loop. Events (such as incoming messages, timers, etc.) trigger event handlers.
 There are no calls to blocking operations; if an operation can't proceed until some external asynchronous action completes, the code
@@ -15,21 +17,22 @@ that starts the action provides a handler (typically in the form of a lambda exp
 loop when the asynchronous action completes. In my target applications, the cache typically keeps local copies of values that are maintained
 in a remote process, so a cache miss entails an asynchronous request to the remote process. Most of the available implementations had
 functional interfaces, for example:
-```
+
+```` cpp
 value = cache.get(key);
 /* use value ... */
-```
+````
 where the get() method can't return a value until the code that handles the cache miss completes, so that the call to get() would
 block.
 
 Alternatively, a non-blocking cache interface might look something like this:
-```
+```` cpp
 cache.get(key, [] (const V& value) { /* use value ... */ });
-```
+````
 where the lambda expression (the second argument to get()) is executed when the value associated with key becomes available,
 either immediately in the case of a cache hit, or when the remote request completes in the case of a miss.
 
-####Transparency
+#### Transparency
 
 Most of the available cache implementations provided *get* and *put* operations, where the get operation had some way of indiciating
 that a cache miss occurred. This interface style places the burden of detecting and handing a cache miss on the calling context.
@@ -40,13 +43,13 @@ the only reasonable way to indicate a cache miss is to throw an exception. Other
 Ideally, a cache should be transparent at the point of use, where the get operation handles a cache miss transparently,
 and the calling context only has to deal with cases where the key is ill-formed, or the key doesn't exist in the store underlying the cache.
 
-####Minimizing assumptions about value types
+#### Minimizing assumptions about value types
 
 The key types in the target project tend to be simple (typically strings), and the value types tend to be somewhat more complex
 (for example, an object that encapsulates a database row). It was important that the cache not impose any requirement for a particular
 constructor or assignment operator on the implementation of the value types to be cached.
 
-####Robust error handling
+#### Robust error handling
 
 In an asynchronous environment, the results of an operation are often passed as parameters to a lambda function that provides
 closure for an action, rather than returning them to the calling context. In fact, the calling context is often the asynchronous
@@ -57,7 +60,7 @@ I have grown to prefer the standard library facility for error handling embodied
 In this case (the cache template), the use of std::error_code allows arbitrary error codes to be passed through the cache
 interface, including codes belonging to application-specific error categories. 
 
-####Reduce (or eliminate) opportunities for memory leaks and memory ownership complications
+#### Reduce (or eliminate) opportunities for memory leaks and memory ownership complications
 
 The previous requirement for minimizing assumptions about value types necessitates passing some kind of object pointer from
 the miss handler to the cache. Otherwise, the cache is forced to construct a copy of the object in its map, requiring the value
@@ -65,13 +68,13 @@ type to support a copy constructor (or something along those lines.) The cache i
 memory ownership unambiguous, and to provide for implicit deletion of the pointer if an error occurs before the cache can insert
 it into the map data structure, and the pointer goes out of scope.
 
-##Using the Cache
+## Using the Cache
 
-####Define a handler for cache misses
+#### Define a handler for cache misses
 
 The cache invokes a *miss handler* when the key you're looking for isn't found in the cache.
 
-```
+```` cpp
 #include "lru_cache.h"
 
 using namespace utils;
@@ -91,23 +94,23 @@ cache_type::miss_handler handler = [] (const std::string& key, cache_type::miss_
 	reply(val_uptr, std::error_code()); // the null-constructed error_code means no error
 }
 
-```
+````
 
 Of course, creating the value will usually be more interesting and problematic than this example. In particular,
 it may entail making a call on an asynchronous I/O interface to read the value from a database or get it from a 
 remote server. More on this later.
 
-####Instantiate the template:
+#### Instantiate the template:
 
-```
+```` cpp
 
 cache_type the_cache(handler, 100); // Pass the miss handler and cache capacity to the constructor
 
-```
+````
 
-####Call get():
+#### Call get():
 
-```
+```` cpp
 std::string key{"something"};
 the_cache.get(key, [&] (cache_type::const_iterator it, std::error_code err)
 {
@@ -123,19 +126,19 @@ the_cache.get(key, [&] (cache_type::const_iterator it, std::error_code err)
 		// ... deal with error condition
 	}
 });
-```
+````
 
-##Details
+## Details
 
 The cache implementation is contained in a single header file, lru_cache.h.
 
-####Template parameters
+#### Template parameters
 
 The template parameters are almost identical to std::unordered_map, allowing you to specify a custom hash or equality function 
 for the key type, if necessary. Otherwise, just instantiate the template specifying key and value types. 
 It's useful declare a typedef or alias for the cache type, but not necessary. In the constructor, specify the capacity of the cache.
 
-```
+```` cpp
 template <class Key, class T, class Hash = std::hash<Key>, class KeyEquals = std::equal_to<Key>>
 class lru_cache
 {
@@ -145,9 +148,9 @@ public:
 	using value_t = T;
 	using value_uptr_t = std::unique_ptr<T>;
 	...
-```
+````
 
-####Iterator
+#### Iterator
 
 The template defines a const_iterator type consistent with standard library const forward iterators. It has two purposes:
 
@@ -156,25 +159,25 @@ before dereferencing, without exposing pointers to the cached values.
 
 2. The iterator allows the cache contents to be examined in usage order, for diagnostic and testing purposes.
 
-####Key type
+#### Key type
 
 The key type must have functions for hash and equal_to available that match the default template parameters, 
 or appropriate functions must be supplied as parameters when the template is instantiated. If a type can be used as a key for 
 std::unordered_map, it will serve as a key for the cache template. In addition, the key type must support a copy constructor.
 
-####Value type
+#### Value type
 
 The value type is not required to support any particular form of constructor or assignment operator. 
 The only requirement is that the miss handler, based on the key, must be able to obtain or construct an appropriate 
 instance of the value type in the form of a unique pointer (see below).
 
-####Miss handler
+#### Miss handler
 
 The application must supply a miss handler--a function that will be invoked by the cache when the value for a particular 
 key is not present in the cache when requested (that is, a cache miss occurred). The miss handler is a void function that takes two parameters. 
 The first is the key in question (as a const reference), and the second is a miss handler reply function, which are specified as type alias declarations:
 
-```
+```` cpp
 template <class Key, class T, class Hash = std::hash<Key>, class KeyEquals = std::equal_to<Key>>
 class lru_cache
 {
@@ -182,7 +185,7 @@ public:
 
 	using miss_handler_reply_f = std::function< void (value_uptr_t, const std::error_code&) >;
 	using miss_handler_f = std::function< void (const Key&, miss_handler_reply_f) >;
-```
+````
 
 The miss handler must do the following:
 
@@ -195,7 +198,7 @@ of a unique pointer to an instance of the value type when passed to the miss han
 and a non-zero error code that the application can recognise as an appropriate error condition. Otherwise, 
 the default (zero-valued) error_code of std::system_category should be passed.
 
-####Constructor
+#### Constructor
 
 The constructor takes three parameters---miss handler, cache capacity, and load factor.
 
@@ -207,11 +210,11 @@ A cache cannot be re-sized after construction.
 The cache implementation constructs the underlying unordered map with a bucket count set to the specified cache capacity 
 divided by the load factor. The load factor parameter has a default value of 0.75, and the value is forced into the range (0.5, 0.95).
 
-####Example
+#### Example
 
 A small (and rather silly) but complete example is provided in the examples subdirectory.
 
-####Design Decisions
+#### Design Decisions
 
 *The signatures for get and the miss handler seem awkward. What's the deal?*
 
@@ -235,7 +238,7 @@ The use of a unique pointer makes the ownership of the memory for the value unam
 
 Passing a const iterator achieves all three goals nicely.
 
-####To do
+#### To do
 
 * Provide a working example of using the cache in a real asynchronous environment.
 
